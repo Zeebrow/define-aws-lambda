@@ -1,0 +1,7 @@
+*.sw?
+*.zip
+*.log
+*.json
+tmp
+
+build/*

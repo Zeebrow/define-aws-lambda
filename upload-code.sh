@@ -21,14 +21,14 @@ function update_code () {
 }
 
 function invoke() {
-  #output=$(mktemp)
-  output=outp.log
+  output=output-$(date +%s).log
   aws --profile define-admin lambda invoke \
     --cli-binary-format raw-in-base64-out \
     --function-name define-url-v1 \
     --invocation-type RequestResponse \
     --payload '{"name": "zeebrow", "word": "cloud"}' \
     "$output"
+  cat "$output" | jq
 }
 
 case "$1" in
@@ -44,5 +44,7 @@ case "$1" in
     invoke
     ;;
   -i) invoke;;
-  *) echo aaa;;
+  *) echo 'usage:
+    -a    build, upload, update lambda, invode
+    -i    invoke only';;
 esac
