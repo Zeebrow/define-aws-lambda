@@ -10,9 +10,8 @@ const PROFILE = 'define-admin'
 
 const appProps = {
   bucketName: 'define-merriam-webster',
-  lambdaCodeZipFilepath: '../build/main.zip',
   lambdaFunctionName: 'define-url-v1',
-  s3PathToLambdaCode: 'code/main.zip'
+  lambdaCodeZipFilepath: '../build/deploy-main.zip',
 }
 
 if (process.env['MW_DICT_API_KEY'] == undefined){
@@ -20,12 +19,8 @@ if (process.env['MW_DICT_API_KEY'] == undefined){
   exit(1)
 }
 
-if (path.extname(appProps.lambdaCodeZipFilepath) != '.zip'){
-  console.log(`'${appProps.lambdaCodeZipFilepath}' doesn't appear to be a good zipfile.`)
-  exit(1)
-}
-
 const app = new App();
+console.log(`Lambda code: ${appProps.lambdaCodeZipFilepath}`)
 new DefineCdkStack(app, 'DefineCdkStack', {
   ...appProps,
   dictApiKeyValue: process.env['MW_DICT_API_KEY']!,

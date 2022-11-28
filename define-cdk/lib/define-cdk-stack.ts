@@ -1,6 +1,3 @@
-import * as path from 'path';
-import * as process from 'process'
-
 import {
   Stack,
   RemovalPolicy,
@@ -13,14 +10,13 @@ import {
 import { Construct } from 'constructs'
 
 export interface DefineCdkStackProps extends StackProps {
+  /*friendly name for bucket to store lambda code*/
   bucketName: string
-  /*obtained from environment variable "MW_DICT_API_KEY"*/
-  dictApiKeyValue: string
-  /*s3 prefix and key to destination code*/
-  s3PathToLambdaCode: string
   /*friendly name for lambda function*/
   lambdaFunctionName: string
-  /*location where the lambda code .zip file can be found (see upload-code.sh to update code after CDK stack is deployed)*/
+  /*obtained from environment variable "MW_DICT_API_KEY"*/
+  dictApiKeyValue: string
+  /*location of zipped lambda code main.zip (double-zipped)*/
   lambdaCodeZipFilepath: string
 }
 
@@ -32,6 +28,7 @@ export class DefineCdkStack extends Stack {
     /**********************************************************
      * create users
     */
+
     const group = new iam.Group(this, 'define-group', {
       groupName: 'define-group',
     });
@@ -50,21 +47,22 @@ export class DefineCdkStack extends Stack {
         removalPolicy: RemovalPolicy.DESTROY,
         autoDeleteObjects: true,
     });
-    bucket.grantReadWrite(group)
     const codeDeployment = new s3deploy.BucketDeployment(this, 'BucketSeed', {
         destinationBucket: bucket,
-        sources: [s3deploy.Source.asset(props.lambdaCodeZipFilepath)]
+        destinationKeyPrefix: 'code',
+        extract: true,
+        sources: [s3deploy.Source.asset(props.lambdaCodeZipFilepath)] //"double-zipped" main.zip
     });
-    codeDeployment.node.addDependency(bucket)
+    bucket.grantReadWrite(group)
 
     /**********************************************************
      * lambda
     */
-    const code = lambda.Code.fromBucket(bucket, props.s3PathToLambdaCode)
 
-    const lambdaFunc = new lambda.Function(this, 'define-lambda-function', {
+    const lambdaFunc = new lambda.Function(this, 'DefineLambdaFunction', {
       functionName: props.lambdaFunctionName,
-      code: code,
+      //from deployedBucket description: Doing this replaces calling `otherResource.node.addDependency(deployment)`
+      code: lambda.Code.fromBucket(codeDeployment.deployedBucket, 'code/main.zip'), //contents of the double-zip
       handler: 'main',
       environment: {
         "MW_DICT_API_KEY": props.dictApiKeyValue!
@@ -76,19 +74,8 @@ export class DefineCdkStack extends Stack {
       // cors: {
       //   allowedOrigins: [] 
       // }
-    })
-    lambdaFunc.node.addDependency(codeDeployment)
+    });
     lambdaFunc.grantInvoke(group);
     bucket.grantReadWrite(lambdaFunc);
-
-
-    // The code that defines your stack goes here
-
-    // example resource
-    // const queue = new sqs.Queue(this, 'DefineCdkQueue', {
-    //   visibilityTimeout: Duration.seconds(300)
-    // });
-
-
-  }
-}
+  };
+};
