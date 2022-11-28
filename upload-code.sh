@@ -21,18 +21,28 @@ function update_code () {
 }
 
 function invoke() {
-  output=$(mktemp)
-  aws --profile define-admin lambda invoke --function-name define-url-v1  "$output"
-  cat "$output"
-  rm "$output"
+  #output=$(mktemp)
+  output=outp.log
+  aws --profile define-admin lambda invoke \
+    --cli-binary-format raw-in-base64-out \
+    --function-name define-url-v1 \
+    --invocation-type RequestResponse \
+    --payload '{"name": "zeebrow", "word": "cloud"}' \
+    "$output"
 }
 
-echo building...
-build
-echo uploading to s3...
-upload
-echo updating lambda function...
-update_code
-sleep 5
-echo running code...
-invoke
+case "$1" in
+  -a)
+    echo building...
+    build
+    echo uploading to s3...
+    upload
+    echo updating lambda function...
+    update_code
+    sleep 5
+    echo running code...
+    invoke
+    ;;
+  -i) invoke;;
+  *) echo aaa;;
+esac
