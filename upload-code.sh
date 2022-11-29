@@ -23,6 +23,7 @@ function update_code () {
     --s3-key code/main.zip
 }
 
+# not used
 function invoke() {
   WORD="${1:-peculiar}"; shift
   echo "defining '$WORD'..."
@@ -37,8 +38,9 @@ function invoke() {
 }
 
 function invoke_url() {
-  url=$(aws lambda get-function-url-config --function-name "$DEFINE_LAMBDA_FUNCTION_NAME" | jq '.FunctionUrl')
-  curl "$url"
+  WORD="${1:-peculiar}"; shift
+  url=$(aws lambda get-function-url-config --function-name "$DEFINE_LAMBDA_FUNCTION_NAME" | jq -r '.FunctionUrl')
+  curl "$url/?word=$WORD" 2>/dev/null  | jq
 }
 
 case "$1" in
@@ -52,10 +54,13 @@ case "$1" in
     update_code
     sleep 5
     echo running code...
-    invoke
+    invoke_url
     ;;
-  -i) shift; invoke "$@";;
+  -i) echo 'FYI: try -u instead'; shift; invoke "$@";;
+  -u) shift; invoke_url "$@";;
   *) echo 'usage:
-    -a    build, upload, update lambda, invode
-    -i    invoke url';;
+    -a          build, upload, update lambda, invode
+    -i  [WORD]  invoke 
+    -u  [WORD]  invoke url';;
+
 esac
