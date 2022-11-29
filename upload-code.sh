@@ -1,7 +1,10 @@
 #!/bin/bash
+
+# these are all roughly analogous to appProps in CDK code
 PROFILE=define-admin
 DEFINE_LAMBDA_FUNCTION_NAME=define-url-v1
 DEFINE_BUCKET_NAME=define-merriam-webster
+DOUBLEZIP_FILENAME=deploy-main.zip
 
 function build() {
   rm -rf build/
@@ -9,6 +12,15 @@ function build() {
   GOOS=linux go build -o build/main define/main.go
   cd build
   zip main.zip main
+  cd ..
+}
+
+# untested
+function prep_deploy() {
+  [ -z $MW_DICT_API_KEY ] && echo 'MW_DICT_API_KEY is not set!' && sleep 2
+  build
+  cd build
+  zip ${DOUBLEZIP_FILENAME} main.zip
   cd ..
 }
 
@@ -56,11 +68,14 @@ case "$1" in
     echo running code...
     invoke_url
     ;;
+  --prep-deploy) prep_deploy;;
   -i) echo 'FYI: try -u instead'; shift; invoke "$@";;
   -u) shift; invoke_url "$@";;
   *) echo 'usage:
-    -a          build, upload, update lambda, invode
-    -i  [WORD]  invoke 
-    -u  [WORD]  invoke url';;
+    -a              build, upload, update lambda, invode
+    -i  [WORD]      invoke 
+    -u  [WORD]      invoke url
+    --prep-deploy   run checks and build specially for first-time deployment
+    ';;
 
 esac
