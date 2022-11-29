@@ -10,18 +10,13 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-type MyEvent struct {
-	Name string `json:"name"`
-	Word string `json:"word"`
-}
-
 type LambdaOutput struct {
 	Word        string
 	HomonymJSON *define.HomonymJSON
 	Suggestions []string
 }
 
-func HandleSimpleRequest(ctx context.Context, request events.LambdaFunctionURLRequest) (LambdaOutput, error) { //Note: return type must be compatible with json.Unmarshal
+func HandleSimpleRequest(ctx context.Context, request events.LambdaFunctionURLRequest) (LambdaOutput, error) {
 	for k, v := range request.QueryStringParameters {
 		if k == "word" {
 			return GetDefinition(v)
@@ -38,8 +33,6 @@ func GetDefinition(word string) (LambdaOutput, error) {
 	if mwDictAPIKey == "" {
 		return lOutput, errors.New("lambda environment improperly configured")
 	}
-
-	// var hj define.HomonymJSON
 
 	mw := define.NewApi(mwDictAPIKey)
 	mw.Define(word)
@@ -58,6 +51,5 @@ func GetDefinition(word string) (LambdaOutput, error) {
 }
 
 func main() {
-	// lambda.Start(HandleEventRequest)
 	lambda.Start(HandleSimpleRequest)
 }
