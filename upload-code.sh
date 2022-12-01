@@ -39,7 +39,7 @@ function update_code () {
 function invoke() {
   WORD="${1:-peculiar}"; shift
   echo "defining '$WORD'..."
-  output=output-$(date +%s).log
+  output=output.log
   aws --profile "$PROFILE" lambda invoke \
     --cli-binary-format raw-in-base64-out \
     --function-name "$DEFINE_LAMBDA_FUNCTION_NAME" \
