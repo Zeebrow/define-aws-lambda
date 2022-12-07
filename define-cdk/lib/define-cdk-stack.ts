@@ -5,12 +5,15 @@ import {
   aws_iam as iam,
   aws_lambda as lambda,
   aws_s3 as s3,
-  aws_s3_deployment as s3deploy
+  aws_s3_deployment as s3deploy,
+  aws_dynamodb as dynamodb,
+  Tags,
 } from 'aws-cdk-lib'
+// import * as cdk from 'aws-cdk-lib'
 import { Construct } from 'constructs'
 
 export interface DefineCdkStackProps extends StackProps {
-  /*friendly name for bucket to store lambda code*/
+  /*friendly name for bucket (dump lambda code)*/
   bucketName: string
   /*friendly name for lambda function*/
   lambdaFunctionName: string
@@ -19,6 +22,8 @@ export interface DefineCdkStackProps extends StackProps {
   /*location of zipped lambda code main.zip (double-zipped)*/
   lambdaCodeZipFilepath: string
 }
+
+const appTag = {key: "cdk app", value: "define-url-v1", tagProps: undefined} 
 
 
 export class DefineCdkStack extends Stack {
@@ -37,6 +42,8 @@ export class DefineCdkStack extends Stack {
       groups: [group],
       userName: "define-user"
     });
+    Tags.of(user).add("cdk app", "define-url-v1")
+    Tags.of(group).add("cdk app", "define-url-v1")
 
     /**********************************************************
      * s3
@@ -54,6 +61,7 @@ export class DefineCdkStack extends Stack {
         sources: [s3deploy.Source.asset(props.lambdaCodeZipFilepath)] //"double-zipped" main.zip
     });
     bucket.grantReadWrite(group)
+    Tags.of(bucket).add("cdk app", "define-url-v1")
 
     /**********************************************************
      * lambda
@@ -77,5 +85,26 @@ export class DefineCdkStack extends Stack {
     });
     lambdaFunc.grantInvoke(group);
     bucket.grantReadWrite(lambdaFunc);
+    Tags.of(lambdaFunc).add("cdk app", "define-url-v1")
+
+    const ddb = new dynamodb.Table(this, 'DefinitionsTable', {
+      partitionKey: {
+        name: "headword",
+        type: dynamodb.AttributeType.STRING
+      },
+      tableName: "define-url-v1",
+      billingMode: dynamodb.BillingMode.PROVISIONED,
+      writeCapacity: 1,
+      readCapacity: 1,
+      removalPolicy: RemovalPolicy.DESTROY,
+
+      /*Nice to know*/
+      sortKey: undefined,
+      kinesisStream: undefined, /*Kinesis Data Stream to capture item-level changes for the table*/
+    })
+    ddb.grantReadWriteData(lambdaFunc);
+    ddb.grantReadData(group);
+    Tags.of(ddb).add("cdk app", "define-url-v1")
+
   };
 };
