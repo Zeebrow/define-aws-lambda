@@ -11,7 +11,7 @@ const PROFILE = 'define-admin'
 const appProps = {
   bucketName: 'define-merriam-webster',
   lambdaFunctionName: 'define-url-v1',
-  lambdaCodeZipFilepath: '../build/deploy-main.zip',
+  lambdaCodeZipFilepath: '../build/main.zip',
 }
 
 if (process.env['MW_DICT_API_KEY'] == undefined){

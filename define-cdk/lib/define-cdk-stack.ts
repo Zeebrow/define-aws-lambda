@@ -9,7 +9,6 @@ import {
   aws_dynamodb as dynamodb,
   Tags,
 } from 'aws-cdk-lib'
-// import * as cdk from 'aws-cdk-lib'
 import { Construct } from 'constructs'
 
 export interface DefineCdkStackProps extends StackProps {
@@ -23,21 +22,22 @@ export interface DefineCdkStackProps extends StackProps {
   lambdaCodeZipFilepath: string
 }
 
-const appTag = {key: "cdk app", value: "define-url-v1", tagProps: undefined} 
-
-
 export class DefineCdkStack extends Stack {
   constructor(scope: Construct, id: string, props: DefineCdkStackProps) {
     super(scope, id, props);
 
-    /**********************************************************
-     * create users
-    */
-
+/***************************************************************************
+ * Infrastructure
+ * 
+ * Supports deployment and maintenance endeavors - The application shouldn't
+ * need to interact with these services.
+*/
+    /**
+     * Because every app needs 1+ admin!
+     */
     const group = new iam.Group(this, 'define-group', {
       groupName: 'define-group',
     });
-
     const user = new iam.User(this, 'define-user', {
       groups: [group],
       userName: "define-user"
@@ -45,66 +45,78 @@ export class DefineCdkStack extends Stack {
     Tags.of(user).add("cdk app", "define-url-v1")
     Tags.of(group).add("cdk app", "define-url-v1")
 
-    /**********************************************************
-     * s3
-    */
-
-    const bucket = new s3.Bucket(this, 'LambdaCodeBucket', {
-        bucketName: props.bucketName,
-        removalPolicy: RemovalPolicy.DESTROY,
-        autoDeleteObjects: true,
-    });
-    const codeDeployment = new s3deploy.BucketDeployment(this, 'BucketSeed', {
-        destinationBucket: bucket,
-        destinationKeyPrefix: 'code',
-        extract: true,
-        sources: [s3deploy.Source.asset(props.lambdaCodeZipFilepath)] //"double-zipped" main.zip
-    });
-    bucket.grantReadWrite(group)
-    Tags.of(bucket).add("cdk app", "define-url-v1")
-
-    /**********************************************************
-     * lambda
-    */
-
     const lambdaFunc = new lambda.Function(this, 'DefineLambdaFunction', {
       functionName: props.lambdaFunctionName,
-      //from deployedBucket description: Doing this replaces calling `otherResource.node.addDependency(deployment)`
-      code: lambda.Code.fromBucket(codeDeployment.deployedBucket, 'code/main.zip'), //contents of the double-zip
+      code: lambda.Code.fromAsset(props.lambdaCodeZipFilepath),
       handler: 'main',
       environment: {
         "MW_DICT_API_KEY": props.dictApiKeyValue!
       },
-      runtime: lambda.Runtime.GO_1_X
+      runtime: lambda.Runtime.GO_1_X,
     });
     lambdaFunc.addFunctionUrl({
       authType:  lambda.FunctionUrlAuthType.NONE,
-      // cors: {
-      //   allowedOrigins: [] 
-      // }
     });
+
     lambdaFunc.grantInvoke(group);
-    bucket.grantReadWrite(lambdaFunc);
     Tags.of(lambdaFunc).add("cdk app", "define-url-v1")
 
+/***************************************************************************
+ * Application Components
+ * 
+ * Services which define (no pun intended) the cloud-native app
+ *                   
+ * Input:
+ * APIKey
+ * headword
+ * 
+ * Output:
+ * json definition
+ * 
+ * State:
+ * Database table (to save API call quota)
+*/
+    /**
+     * Permissions required for the app to run
+     */
+    lambdaFunc.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: [
+        // `arn:aws:lambda:${this.region}:${this.account}:*:*` // why doesn't this work
+        "*"
+      ],
+      actions: [
+        "dynamodb:PutItem"
+      ]
+    }))
     const ddb = new dynamodb.Table(this, 'DefinitionsTable', {
       partitionKey: {
-        name: "headword",
+        name: "Headword",
         type: dynamodb.AttributeType.STRING
       },
-      tableName: "define-url-v1",
+      // tableName: "define-url-v1", //you cannot update a table once you name it
       billingMode: dynamodb.BillingMode.PROVISIONED,
       writeCapacity: 1,
       readCapacity: 1,
       removalPolicy: RemovalPolicy.DESTROY,
-
-      /*Nice to know*/
       sortKey: undefined,
-      kinesisStream: undefined, /*Kinesis Data Stream to capture item-level changes for the table*/
     })
-    ddb.grantReadWriteData(lambdaFunc);
     ddb.grantReadData(group);
     Tags.of(ddb).add("cdk app", "define-url-v1")
-
+    /**
+     * @@@TODO
+     * The name of the table which is used to store definitions is subject to change between deployments.
+     * This is a pretty typical admin 
+     * 
+     * Here are some choices:
+     * 1) Environment Variable
+     *  + less application dependencies
+     *  + cheaper
+     *  
+     * 2) Parameter Store
+     *  + Decouples app from deployment, if that is desireable
+     */
+    lambdaFunc.addEnvironment("DDB_TABLE_NAME", ddb.tableName)
   };
+
 };

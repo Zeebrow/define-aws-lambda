@@ -1,4 +1,4 @@
-package main
+package define_aws_lambda
 
 import (
 	"context"
@@ -8,12 +8,50 @@ import (
 	"github.com/Zeebrow/define/define"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 type LambdaOutput struct {
-	Word        string
-	HomonymJSON *define.HomonymJSON
+	Word        string `json:"headword"`
+	HomonymJSON *define.SimpleHomonymJSON
 	Suggestions []string
+}
+
+func DoSomeDynamoDBStuff(ctx context.Context) error {
+	tableName := "define-cli-v1"
+	// https://dynobase.dev/dynamodb-golang-query-examples/
+
+	cfg, err := config.LoadDefaultConfig(ctx, func(o *config.LoadOptions) error {
+		o.Region = "us-east-1" //@@@
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	definintion, err := GetDefinition("intricate")
+	if err != nil {
+		return err
+	}
+	ddbItem, err := attributevalue.MarshalMap(definintion)
+	if err != nil {
+		return err
+	}
+
+	ddb := dynamodb.NewFromConfig(cfg)
+	_, err = ddb.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &tableName,
+		Item:      ddbItem,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func HandleDDBTest(ctx context.Context, request events.LambdaFunctionURLRequest) error {
+	return DoSomeDynamoDBStuff(ctx)
 }
 
 func HandleSimpleRequest(ctx context.Context, request events.LambdaFunctionURLRequest) (LambdaOutput, error) {
@@ -51,5 +89,6 @@ func GetDefinition(word string) (LambdaOutput, error) {
 }
 
 func main() {
-	lambda.Start(HandleSimpleRequest)
+	// lambda.Start(HandleSimpleRequest)
+	lambda.Start(HandleDDBTest)
 }
