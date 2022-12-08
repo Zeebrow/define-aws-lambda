@@ -1,8 +1,9 @@
-package define_aws_lambda
+package main
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/Zeebrow/define/define"
@@ -14,13 +15,13 @@ import (
 )
 
 type LambdaOutput struct {
-	Word        string `json:"headword"`
+	Headword    string `json:"headword"`
 	HomonymJSON *define.SimpleHomonymJSON
 	Suggestions []string
 }
 
 func DoSomeDynamoDBStuff(ctx context.Context) error {
-	tableName := "define-cli-v1"
+	tableName := "DefineCdkStack-DefinitionsTable5BA5B3FD-TR5QLHMJLTF2"
 	// https://dynobase.dev/dynamodb-golang-query-examples/
 
 	cfg, err := config.LoadDefaultConfig(ctx, func(o *config.LoadOptions) error {
@@ -30,15 +31,16 @@ func DoSomeDynamoDBStuff(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	definintion, err := GetDefinition("intricate")
+	definintion, err := GetDefinition("peculiar")
 	if err != nil {
 		return err
 	}
-	ddbItem, err := attributevalue.MarshalMap(definintion)
+	ddbItem, err := attributevalue.MarshalMap(definintion.HomonymJSON)
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("%+v\n", definintion.HomonymJSON)
 	ddb := dynamodb.NewFromConfig(cfg)
 	_, err = ddb.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &tableName,
@@ -65,30 +67,32 @@ func HandleSimpleRequest(ctx context.Context, request events.LambdaFunctionURLRe
 
 func GetDefinition(word string) (LambdaOutput, error) {
 	var lOutput LambdaOutput = LambdaOutput{
-		Word: word,
+		Headword: word,
 	}
 	mwDictAPIKey := os.Getenv("MW_DICT_API_KEY")
 	if mwDictAPIKey == "" {
 		return lOutput, errors.New("lambda environment improperly configured")
 	}
 
-	mw := define.NewApi(mwDictAPIKey)
-	mw.Define(word)
-	if mw.Suggestions != nil {
+	mw := define.NewDictionary(mwDictAPIKey)
+	ds, err := mw.Lookup(word)
+	if err != nil { // 'word' did not have a definition and instead provides suggestions
+		var eo string
+		for i, s := range *ds.Suggestions {
+			eo += fmt.Sprintf("suggestion %d: %s\n", i, s)
+		}
 		lOutput.HomonymJSON = nil
-		lOutput.Suggestions = *mw.Suggestions
-		return lOutput, nil
+		lOutput.Suggestions = *ds.Suggestions
+		return lOutput, err
 	}
-	if mw.Response != nil {
-		j := mw.Response.GroupByHomonym()
-		lOutput.HomonymJSON = &j
-		lOutput.Suggestions = nil
-		return lOutput, nil
-	}
-	return lOutput, errors.New("something went wrong")
+	j := ds.GetSimpleHomonymJSON()
+	lOutput.HomonymJSON = &j
+	lOutput.Suggestions = nil
+	fmt.Printf("homonym json: %+v\n", j)
+	return lOutput, nil
 }
 
 func main() {
-	// lambda.Start(HandleSimpleRequest)
-	lambda.Start(HandleDDBTest)
+	lambda.Start(HandleSimpleRequest)
+	// lambda.Start(HandleDDBTest)
 }
