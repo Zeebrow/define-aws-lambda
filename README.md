@@ -45,11 +45,12 @@ zip build/main.zip build/main
 - (go) The function signature you pass to `lambda.Start()` is all that matters.
   * If you want to return a JSON, return a struct from your handler function that `encoding/json` would be able to `Unmarshal`. 
   * See [aws-lambda-go/events](https://github.com/aws/aws-lambda-go/tree/main/events) for some good examples
-  * See https://hub.docker.com/r/amazon/aws-lambda-provided
 - Providing a `functionName` in `lambda.Function` props will delete and recreate
   the lambda function, like so many other AWS resource updates.
 - It is safe to use environment variables to store secret values as long as the `cdk.out` is in your `.gitignore` file (default)
 - cdk does not detect changes to the contents of files uploaded to lambda (run `aws lambda update-function-code help`)
 
-# Thanks for reading!
+# TODO
+
+https://github.com/aws/aws-lambda-runtime-interface-emulator/
 
